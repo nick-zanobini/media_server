@@ -1,0 +1,351 @@
+
+# Redirect all http traffic to https
+server {
+    listen 80;
+    server_name nzhome.duckdns.org;
+    return 301 https://$host$request_uri;
+}
+
+# Redirect all http traffic to https
+server {
+    listen 80;
+    server_name homeassistant.nzhome.duckdns.org;
+    return 301 https://$host$request_uri;
+}
+
+# Redirect all http traffic to https
+server {
+    listen 80;
+    server_name portainer.nzhome.duckdns.org;
+    return 301 https://$host$request_uri;
+}
+
+# Portainer Upstream
+upstream portainer {
+    server 10.0.0.24:9876;
+    keepalive 32;
+}
+
+# Home Assistant Upstream
+upstream homeassistant {
+    server 10.0.0.24:8123;
+    keepalive 32;
+}
+
+# Deluge Upstream
+upstream deluge {
+    server 10.0.0.24:8112;
+    keepalive 32;
+}
+
+# Sonarr Upstream
+upstream sonarr {
+    server 10.0.0.24:8989;
+    keepalive 32;
+}
+
+# Radarr Upstream
+upstream radarr {
+    server 10.0.0.24:7878;
+    keepalive 32;
+}
+
+# Ombi Upstream
+upstream ombi-upstream {
+    server 10.0.0.24:3579;
+    keepalive 32;
+}
+
+# Glances Upstream
+upstream glances {
+    server 10.0.0.24:61208;
+    keepalive 32;
+}
+
+# Tautulli Upstream
+upstream tautulli {
+    server 10.0.0.24:8181;
+    keepalive 32;
+}
+
+# Plex Upstream
+upstream plex-upstream {
+    server 10.0.0.24:32400;
+    keepalive 32;
+}
+
+# Grafana Upstream
+upstream grafana {
+    server 10.0.0.24:3000;
+    keepalive 32;
+}
+
+# Duplicati Upstream
+upstream duplicati {
+    server 10.0.0.24:8200;
+    keepalive 32;
+}
+
+# Netdata Upstream
+upstream netdata {
+    server 10.0.0.24:19999;
+    keepalive 32;
+}
+
+# Octoprint Upstream
+upstream octoprint {
+    server 10.0.0.17:5000;
+    keepalive 32;
+}
+
+# Octoprint Webcam Upstream
+upstream "mjpg-streamer" {
+    server 10.0.0.17:8080;
+    keepalive 32;
+}
+
+# main server block
+server {
+    listen 443 ssl http2 default_server;
+    listen [::]:443 ssl http2 default_server;
+
+    server_name nzhome.duckdns.org;
+
+    ssl_certificate /config/keys/letsencrypt/fullchain.pem;
+    ssl_certificate_key /config/keys/letsencrypt/privkey.pem;
+    ssl_dhparam /config/nginx/dhparams.pem;
+    ssl_ciphers 'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-DSS-AES128-GCM-SHA256:kEDH+AESGCM:ECDHE-RSA-AES128-SHA256:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA:ECDHE-ECDSA-AES256-SHA:DHE-RSA-AES128-SHA256:DHE-RSA-AES128-SHA:DHE-DSS-AES128-SHA256:DHE-RSA-AES256-SHA256:DHE-DSS-AES256-SHA:DHE-RSA-AES256-SHA:AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA256:AES256-SHA256:AES128-SHA:AES256-SHA:AES:CAMELLIA:DES-CBC3-SHA:!aNULL:!eNULL:!EXPORT:!DES:!RC4:!MD5:!PSK:!aECDH:!EDH-DSS-DES-CBC3-SHA:!EDH-RSA-DES-CBC3-SHA:!KRB5-DES-CBC3-SHA';
+    ssl_prefer_server_ciphers on;
+
+    client_max_body_size 0;
+
+    auth_basic "Restricted";
+    auth_basic_user_file /config/nginx/.htpasswd;
+
+    # Organizr files goes here
+    root /config/www/Organizr;
+
+    index index.php index.html index.htm
+
+    # error_page 401 403 404 /404.html;
+    error_page 400 401 403 405 408 500 502 503 504  /error.php?error=$status;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    location ~ \.php$ {
+        fastcgi_split_path_info ^(.+.php)(/.+)$;
+        try_files $uri =404;
+        include /etc/nginx/fastcgi_params;
+        fastcgi_pass 127.0.0.1:9000;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_index index.php;
+    } 
+
+    # Deny access to .htaccess files
+    location ~/\.ht {
+        deny all;
+    }
+
+    # Sonarr
+    location /sonarr {
+        proxy_pass http://sonarr;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_redirect off;
+        proxy_buffering off;
+    }
+
+    # Radarr
+    location /radarr {
+        proxy_pass http://radarr;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_redirect off;
+        proxy_buffering off;
+
+    }
+
+    location /ombi {
+        return 301 $scheme://$host/ombi/; 
+    }
+
+    location /ombi/ {
+        auth_basic          off;
+        proxy_set_header        X-Real-IP               $remote_addr;
+        proxy_set_header        X-Forwarded-Host        $server_name;
+        proxy_set_header        X-Forwarded-For         $proxy_add_x_forwarded_for;
+        proxy_set_header        X-Forwarded-Ssl         on;
+        proxy_set_header        X-Forwarded-Proto       $scheme;
+        proxy_pass http://ombi-upstream;
+        proxy_read_timeout  90;
+        proxy_redirect http://ombi-upstream https://$host;
+    }
+
+    # Deluge
+    location /deluge {
+        proxy_pass http://deluge/;
+        proxy_set_header X-Deluge-Base "/deluge/";
+        add_header X-Frame-Options SAMEORIGIN;
+    }
+
+    location /web {
+        proxy_pass http://plex-upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    location /plex {
+        proxy_pass http://plex-upstream/web;
+    }
+
+    # Octoprint
+    # location /octoprint/ {
+    #     proxy_pass http://octoprint/; # make sure to add trailing slash here!
+    #     proxy_set_header Host $http_host;
+    #     proxy_set_header Upgrade $http_upgrade;
+    #     proxy_set_header Connection "upgrade";
+    #     proxy_set_header X-Real-IP $remote_addr;
+    #     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    #     proxy_set_header X-Scheme $scheme;
+    #     proxy_set_header X-Script-Name /octoprint;
+    #     proxy_http_version 1.1;
+    #     client_max_body_size 0;    
+    # }
+
+    location /octoprint/ {
+        auth_basic          off;
+        proxy_pass http://10.0.0.17:5000/; # make sure to add trailing slash here!
+        proxy_set_header Host $http_host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Scheme $scheme;
+        client_max_body_size 0;    
+    }
+
+    location /webcam/ {
+        proxy_pass http://mjpg-streamer/;
+    }
+
+    # Portainer
+    location /portainer {
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_pass http://portainer/;   
+    }
+
+    location /portainer/api {
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_http_version 1.1;
+        proxy_pass http://portainer/api;
+    }
+
+    location = /netdata {
+        return 301 /netdata/;
+    }
+
+   location ~ /netdata/(?<ndpath>.*) {
+        proxy_redirect off;
+        proxy_set_header Host $host;
+
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Server $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_http_version 1.1;
+        proxy_pass_request_headers on;
+        proxy_set_header Connection "keep-alive";
+        proxy_store off;
+        proxy_pass http://netdata/$ndpath$is_args$args;
+
+        gzip on;
+        gzip_proxied any;
+        gzip_types *;
+    }
+
+    location /glances/ {
+        rewrite /glances/(.*) /$1 break;
+        proxy_pass http://glances/;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /grafana/ {
+        proxy_pass http://grafana/;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+
+    root /config/www;
+    index index.html index.htm index.php;
+
+    server_name portainer.nzhome.duckdns.org;
+
+    client_max_body_size 0;
+
+    ssl_certificate /config/keys/letsencrypt/fullchain.pem;
+    ssl_certificate_key /config/keys/letsencrypt/privkey.pem;
+    ssl_dhparam /config/nginx/dhparams.pem;
+    ssl_ciphers 'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-DSS-AES128-GCM-SHA256:kEDH+AESGCM:ECDHE-RSA-AES128-SHA256:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA:ECDHE-ECDSA-AES256-SHA:DHE-RSA-AES128-SHA256:DHE-RSA-AES128-SHA:DHE-DSS-AES128-SHA256:DHE-RSA-AES256-SHA256:DHE-DSS-AES256-SHA:DHE-RSA-AES256-SHA:AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA256:AES256-SHA256:AES128-SHA:AES256-SHA:AES:CAMELLIA:DES-CBC3-SHA:!aNULL:!eNULL:!EXPORT:!DES:!RC4:!MD5:!PSK:!aECDH:!EDH-DSS-DES-CBC3-SHA:!EDH-RSA-DES-CBC3-SHA:!KRB5-DES-CBC3-SHA';
+    ssl_prefer_server_ciphers on;
+
+    
+
+    location / {
+            proxy_pass http://portainer/;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+    }
+
+    location /api/websocket/ {
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_http_version 1.1;
+            proxy_pass http://portainer/api/websocket/;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+
+    root /config/www;
+    index index.html index.htm index.php;
+
+    server_name homeassistant.nzhome.duckdns.org;
+
+    client_max_body_size 0;
+
+    ssl_certificate /config/keys/letsencrypt/fullchain.pem;
+    ssl_certificate_key /config/keys/letsencrypt/privkey.pem;
+    ssl_dhparam /config/nginx/dhparams.pem;
+    ssl_ciphers 'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-DSS-AES128-GCM-SHA256:kEDH+AESGCM:ECDHE-RSA-AES128-SHA256:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA:ECDHE-ECDSA-AES256-SHA:DHE-RSA-AES128-SHA256:DHE-RSA-AES128-SHA:DHE-DSS-AES128-SHA256:DHE-RSA-AES256-SHA256:DHE-DSS-AES256-SHA:DHE-RSA-AES256-SHA:AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA256:AES256-SHA256:AES128-SHA:AES256-SHA:AES:CAMELLIA:DES-CBC3-SHA:!aNULL:!eNULL:!EXPORT:!DES:!RC4:!MD5:!PSK:!aECDH:!EDH-DSS-DES-CBC3-SHA:!EDH-RSA-DES-CBC3-SHA:!KRB5-DES-CBC3-SHA';
+    ssl_prefer_server_ciphers on;
+
+    auth_basic          off;
+
+    location / {
+        proxy_pass http://homeassistant/;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+    }
+
+    location /api/websocket {
+        proxy_pass http://homeassistant/api/websocket;
+        proxy_set_header Host $host;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}

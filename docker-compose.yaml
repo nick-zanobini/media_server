@@ -1,0 +1,329 @@
+version: '2'
+services:
+    delugevpn:
+        container_name: delugevpn
+        image: binhex/arch-delugevpn
+        cap_add: 
+            - NET_ADMIN
+        ports:
+            - '${IP_ADDRESS}:8112:8112'
+            - '${IP_ADDRESS}:8118:8118'
+            - '${IP_ADDRESS}:58846:58846'
+            - '${IP_ADDRESS}:58946:58946'    
+        depends_on:
+            - nginx
+        volumes:
+            - /media/downloads:/downloads
+            - /opt/appdata/delugevpn:/config
+            - /etc/localtime:/etc/localtime:ro
+        environment:
+            - VPN_PASS=${VPN_PASS}
+            - PGID=${PGID}
+            - UMASK=${UMASK}
+            - DEBUG=${DEBUG}
+            - LAN_NETWORK=${LAN_NETWORK}
+            - ENABLE_PRIVOXY=${ENABLE_PRIVOXY}
+            - TZ=${TZ}
+            - STRICT_PORT_FORWARD=${STRICT_PORT_FORWARD}
+            - VPN_PROV=${VPN_PROV}
+            - VPN_REMOTE=${VPN_REMOTE}
+            - VPN_ENABLED=${VPN_ENABLED}
+            - PUID=${PUID}
+            - NAME_SERVERS=${NAME_SERVERS}
+            - VPN_PORT=${VPN_PORT}
+            - VPN_PROTOCOL=${VPN_PROTOCOL}
+            - VPN_USER=${VPN_USER}
+        networks:
+            - proxy
+
+    nginx:
+        container_name: nginx
+        image: linuxserver/letsencrypt
+        restart: unless-stopped
+        cap_add: 
+            - NET_ADMIN
+        ports:
+            - '${IP_ADDRESS}:443:443'
+            - '${IP_ADDRESS}:80:80'
+        volumes:
+            - /etc/localtime:/etc/localtime:ro
+            - /opt/appdata/letsencrypt:/config
+            - /opt/appdata/organizr:/database
+        environment:
+            - PUID=${PUID}
+            - PGID=${PGID}
+            - TZ=${TZ}  
+            - URL=${URL}
+            - VALIDATION=${VALIDATION}
+            - EMAIL=${EMAIL}
+            - SUBDOMAINS=${SUBDOMAINS}
+        networks:
+            - proxy
+
+    plex:
+        container_name: plex
+        image: plexinc/pms-docker
+        restart: unless-stopped
+        hostname: ${HOSTNAME}
+        volumes:
+            - /etc/localtime:/etc/localtime:ro
+            - /opt/appdata/plex/config:/config
+            - /opt/appdata/plex/transcode:/transcode
+            - /media:/data
+        environment:
+            - PLEX_CLAIM=${PMSTOKEN}
+            - ADVERTISE_IP=http://${IP_ADDRESS}:32400/
+            - ALLOWED_NETWORKS=${LAN_NETWORK}
+            - PLEX_UID=${PUID}
+            - PLEX_GID=${PGID}
+        ports:
+            - '${IP_ADDRESS}:32400:32400/tcp'
+            - '${IP_ADDRESS}:3005:3005/tcp'
+            - '${IP_ADDRESS}:8324:8324/tcp'
+            - '${IP_ADDRESS}:32469:32469/tcp'
+            - '${IP_ADDRESS}:1900:1900/udp'
+            - '${IP_ADDRESS}:32410:32410/udp'
+            - '${IP_ADDRESS}:32412:32412/udp'
+            - '${IP_ADDRESS}:32413:32413/udp'
+            - '${IP_ADDRESS}:32414:32414/udp'
+        networks:
+            - proxy
+
+    sonarr:
+        container_name: sonarr
+        image: linuxserver/sonarr
+        restart: unless-stopped
+        ports:
+            - '${IP_ADDRESS}:8989:8989'
+        environment:
+            - PUID=${PUID}
+            - PGID=${PGID}
+            - TZ=${TZ}
+        depends_on:
+            - delugevpn
+        volumes:
+            - /opt/appdata/sonarr:/config
+            - /media/TV:/tv
+            - /media/downloads:/downloads
+            - /etc/localtime:/etc/localtime:ro
+        networks:
+            - proxy
+
+    radarr:
+        container_name: radarr
+        image: linuxserver/radarr
+        restart: unless-stopped
+        ports:
+            - '${IP_ADDRESS}:7878:7878'
+        depends_on:
+            - delugevpn
+        environment:
+            - PUID=${PUID}
+            - PGID=${PGID}
+        volumes:
+            - /opt/appdata/radarr:/config
+            - /media/Movies:/movies
+            - /media/downloads:/downloads
+            - /etc/localtime:/etc/localtime:ro
+        networks:
+            - proxy
+
+    ombi:
+        container_name: ombi
+        image: linuxserver/ombi
+        restart: unless-stopped
+        ports:
+            - '${IP_ADDRESS}:3579:3579'
+        environment:
+            - PUID=${PUID}
+            - PGID=${PGID}
+        volumes:
+            - /etc/localtime:/etc/localtime:ro
+            - /opt/appdata/ombi:/config
+        networks:
+            - proxy
+
+    portainer:
+        container_name: portainer
+        image: portainer/portainer
+        restart: unless-stopped
+        ports:
+            - '${IP_ADDRESS}:9876:9000'
+        volumes:
+            - /etc/localtime:/etc/localtime:ro
+            - /opt/appdata/portainer:/data
+            - /var/run/docker.sock:/var/run/docker.sock
+        networks:
+            - proxy
+    
+    tautulli:
+        image: tautulli/tautulli
+        container_name: tautulli
+        restart: unless-stopped
+        ports:
+            - '${IP_ADDRESS}:8181:8181'
+        environment:
+            - PUID=${PUID}
+            - PGID=${PGID}
+            - TZ=${TZ}
+        volumes:
+            - '/opt/appdata/tautulli:/config'
+            - '/opt/appdata/plex/Library/Application Support/Plex Media Server/Logs:/logs:ro'
+        depends_on:
+            - plex
+        networks:
+            - proxy
+
+    watchtower:
+        image: v2tec/watchtower
+        container_name: watchtower
+        restart: unless-stopped
+        environment:
+            - TZ=${TZ}
+        volumes:
+            - '/var/run/docker.sock:/var/run/docker.sock'
+        command: --schedule @midnight --cleanup
+        networks:
+            - proxy
+
+    netdata:
+        image: titpetric/netdata
+        container_name: netdata
+        restart: unless-stopped
+        ports:
+            - '${IP_ADDRESS}:19999:19999'
+        cap_add:
+            - SYS_PTRACE
+        volumes:
+            - '/proc:/host/proc:ro'
+            - '/sys:/host/sys:ro'
+            - '/var/run/docker.sock:/var/run/docker.sock'
+        networks:
+            - proxy
+
+    duplicati:
+        image: linuxserver/duplicati
+        container_name: duplicati
+        restart: unless-stopped
+        ports:
+            - '${IP_ADDRESS}:8200:8200'
+        environment:
+            - PUID=${PUID}
+            - PGID=${PGID}
+        volumes:
+            - '/opt/appdata/duplicati:/config'
+            - '/opt/appdata/duplicati/backups:/backups'
+            - '/opt/appdata/duplicati/data:/data'
+            - '/etc/localtime:/etc/localtime:ro'
+        networks:
+            - proxy
+
+    grafana:
+        container_name: grafana
+        image: grafana/grafana
+        restart: unless-stopped
+        ports:
+            - '${IP_ADDRESS}:3000:3000'
+        volumes:
+            - /opt/appdata/grafana:/etc/grafana:rw
+            - /opt/appdata/grafana:/var/lib/grafana:rw
+        depends_on:
+            - influxdb
+        networks:
+            - proxy
+
+    influxdb:
+        container_name: influxdb
+        image: influxdb:latest
+        ports:
+            - '${IP_ADDRESS}:8086:8086'
+        volumes:
+            - /opt/appdata/influxdb/influxdb.conf:/etc/influxdb/influxdb.conf:ro
+            - /opt/appdata/influxdb:/var/lib/influxdb
+        restart: on-failure
+        networks:
+            - proxy
+
+    homeassistant:
+        container_name: homeassistant
+        image: homeassistant/home-assistant
+        restart: unless-stopped
+        privileged: true
+        network_mode: host
+        ports:
+            - '${IP_ADDRESS}:8123:8123'
+        volumes:
+            - /opt/appdata/homeassistant:/config
+            - /etc/localtime:/etc/localtime:ro
+            - /var/run/docker.sock:/var/run/docker.sock delugevpn
+        depends_on:
+            - influxdb
+            - mosquitto
+
+    mosquitto:
+        container_name: mqtt
+        image: eclipse-mosquitto:latest
+        restart: unless-stopped
+        environment:
+            - PUID=${PUID}
+            - PGID=${PGID}
+        ports:
+            - '${IP_ADDRESS}:1883:1883'
+            - '${IP_ADDRESS}:9001:9001'
+        volumes:
+            # - /opt/appdata/mqtt/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+            # - /opt/appdata/mqtt/config/pwfile:/mosquitto/config/pwfile:ro
+            - /opt/appdata/mqtt/config:/mosquitto/config:ro
+            - /opt/appdata/mqtt/data:/mosquitto/data:rw
+            - /opt/appdata/mqtt/log:/mosquitto/log:rw
+            - /etc/localtime:/etc/localtime:ro
+        networks:
+            - proxy
+
+    docker_mon:
+        image: philhawthorne/ha-dockermon
+        container_name: ha_dockermon
+        restart: unless-stopped
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+            - /opt/appdata/dockermon:/config
+        ports:
+            - '${IP_ADDRESS}:8126:8126'
+        networks:
+            - proxy
+    
+    glances:
+        image: nicolargo/glances
+        container_name: glances
+        restart: unless-stopped
+        pid: host
+        ports:
+            - '${IP_ADDRESS}:61208:61208'
+            - '${IP_ADDRESS}:61209:61209'
+        environment:
+            - GLANCES_OPT=-w
+            - TZ=${TZ}
+        volumes:
+            - '/var/run/docker.sock:/var/run/docker.sock:ro'
+        networks:
+            - proxy
+
+    duckdns:
+        image: linuxserver/duckdns
+        container_name: duckdns
+        restart: unless-stopped
+        environment:
+            - PUID=${PUID}
+            - PGID=${PGID}
+            - TZ=${TZ}
+            - SUBDOMAINS=${SUBDOMAINS}
+            - TOKEN=${DUCKDNSTOKEN}
+        volumes:
+            - /opt/appdata/duckdns:/config
+        networks:
+            - proxy
+
+networks:
+  proxy:
+    external:
+      name: proxy
